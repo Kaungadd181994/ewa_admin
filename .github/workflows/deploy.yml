@@ -1,0 +1,134 @@
+```yaml
+name: Deploy EWA Admin Portal to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main # Change this to 'master' if your default branch is master
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: |
+          if [ -f package.json ]; then
+            npm install
+          else
+            npm init -y
+            npm install react react-dom lucide-react
+            npm install -D vite @vitejs/plugin-react tailwindcss postcss autoprefixer
+            npx tailwindcss init -p
+          fi
+
+      - name: Create Scaffold Files (If missing)
+        run: |
+          # Ensure index.html exists
+          if [ ! -f index.html ]; then
+            cat << 'EOF' > index.html
+            <!DOCTYPE html>
+            <html lang="en">
+              <head>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <title>EWA Advanced Unified Portal</title>
+              </head>
+              <body class="bg-slate-50">
+                <div id="root"></div>
+                <script type="module" src="/src/main.jsx"></script>
+              </body>
+            </html>
+          EOF
+          fi
+
+          # Ensure src directory exists
+          mkdir -p src
+
+          # Ensure src/main.jsx exists
+          if [ ! -f src/main.jsx ]; then
+            cat << 'EOF' > src/main.jsx
+            import React from 'react'
+            import ReactDOM from 'react-dom/client'
+            import App from './App.jsx'
+            import './index.css'
+
+            ReactDOM.createRoot(document.getElementById('root')).render(
+              <React.StrictMode>
+                <App />
+              </React.StrictMode>,
+            )
+          EOF
+          fi
+
+          # Ensure src/index.css exists for Tailwind
+          if [ ! -f src/index.css ]; then
+            cat << 'EOF' > src/index.css
+            @tailwind base;
+            @tailwind components;
+            @tailwind utilities;
+          EOF
+          fi
+
+          # Ensure vite.config.js exists with base path setting for GitHub Pages
+          if [ ! -f vite.config.js ]; then
+            cat << 'EOF' > vite.config.js
+            import { defineConfig } from 'vite'
+            import react from '@vitejs/plugin-react'
+
+            export default defineConfig({
+              plugins: [react()],
+              base: './', // Ensures assets resolve properly with relative paths
+            })
+          EOF
+          fi
+
+          # Ensure tailwind.config.js exists
+          if [ ! -f tailwind.config.js ]; then
+            cat << 'EOF' > tailwind.config.js
+            /** @type {import('tailwindcss').Config} */
+            export default {
+              content: [
+                "./index.html",
+                "./src/**/*.{js,ts,jsx,tsx}",
+              ],
+              theme: {
+                extend: {},
+              },
+              plugins: [],
+            }
+          EOF
+          fi
+
+          # Ensure package.json has build script
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.scripts = pkg.scripts || {};
+            pkg.scripts.build = 'vite build';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          "
+
+      - name: Build Portal
+        run: npm run build
+
+      - name: Deploy to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: dist
+          branch: gh-pages
+
+```
+
